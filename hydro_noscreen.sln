@@ -1,0 +1,22 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio 2013
+VisualStudioVersion = 12.0.31101.0
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "hydro_noscreen", "hydro_noscreen.vcxproj", "{CDC2C1B7-B9D8-438B-AF89-8D75BD81FC8C}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Win32 = Debug|Win32
+		Release|Win32 = Release|Win32
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{CDC2C1B7-B9D8-438B-AF89-8D75BD81FC8C}.Debug|Win32.ActiveCfg = Debug|Win32
+		{CDC2C1B7-B9D8-438B-AF89-8D75BD81FC8C}.Debug|Win32.Build.0 = Debug|Win32
+		{CDC2C1B7-B9D8-438B-AF89-8D75BD81FC8C}.Release|Win32.ActiveCfg = Release|Win32
+		{CDC2C1B7-B9D8-438B-AF89-8D75BD81FC8C}.Release|Win32.Build.0 = Release|Win32
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+EndGlobal
