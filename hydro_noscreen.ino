@@ -1,4 +1,34 @@
+/*
 
+Author:  Brandon Byrne, modified hydroponics control for "ebb and flow" setup.
+Idea and logicloop based on Tom De Bie "Billie"'s hydroponics controller
+Copyright (C) 2015  Brandon Byrne
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+Originally based on Billie's hydroponics controller: 
+https://github.com/BillieBricks/Billie-s-Hydroponic-Controller
+
+Changes include:
+-pump control for an ebb and flow system
+-modified pH controller
+-EasyIoT incorportation to report status of each sensor over the web
+-removed LCD screen requirements
+-removed unused features, refer to the original github above
+
+
+*/
 
 #include <dht11.h>
 #include <Esp8266EasyIoTMsg.h>
@@ -14,11 +44,6 @@
 int pHPin = A9;                    //pin for pH probe
 int pHPlusPin = 45;                //pin for Base pump (relay)
 int pHMinPin = 43;                 //pin for Acide pump (relay)
-int ventilatorPin = 47;            //pin for Fan (relay)
-int floatLowPin = 7;               //pin for lower float sensor
-int floatHighPin = 8;              //pin for upper float sensor
-int solenoidPin = 60;              //pin for Solenoid valve (relay)
-int lightSensor = 68;              //pin for Photoresistor
 int pumpPin = 47;				   //pin for main pump
 const int kCePin = 36;  // Chip Enable
 const int kIoPin = 34;  // Input/Output
@@ -46,21 +71,8 @@ float FanTemp;
 float FanHumid;
 int flood;
 
-int lightADCReading;
-double currentLightInLux;
-double lightInputVoltage;
-double lightResistance;
-
 int EepromSetpoint = 10;      //location of Setpoint in Eeprom
 int EepromSetHysteris = 20;   //location of SetHysteris in Eeprom
-int EepromFanTemp = 40;       //location of FanTemp in Eeprom
-int EepromFanHumid = 60;      //location of FanHumid in Eeprom
-
-
-#define DHTTYPE DHT11
-byte bGlobalErr;    //for passing error code back.
-byte dht_dat[4];    //Array to hold the bytes sent from sensor.
-
 
 Esp8266EasyIoT esp;
 
@@ -92,7 +104,6 @@ void setup()
 	noScreenSetup();
 	EepromRead();
 	logicSetup();
-	timeSetup();
 	IoTsetup();
 }
 
@@ -100,10 +111,7 @@ void loop()
 {
 
 	logicLoop();
-	fotoLoop();
-	//FanControl();
 	runPump();
-	TankProgControl();
 	IoTreport();
 
 }
@@ -112,8 +120,6 @@ void EepromRead()
 {
 	Setpoint = EEPROM.readFloat(EepromSetpoint);
 	SetHysteris = EEPROM.readFloat(EepromSetHysteris);
-	FanTemp = EEPROM.read(EepromFanTemp);
-	FanHumid = EEPROM.read(EepromFanHumid);
 }
 
 
@@ -123,8 +129,6 @@ void logicSetup()
 
 	pinMode(pHPlusPin, OUTPUT);
 	pinMode(pHMinPin, OUTPUT);
-	pinMode(ventilatorPin, OUTPUT);
-	pinMode(solenoidPin, OUTPUT);
 	pinMode(pumpPin, OUTPUT);
 	pmem == 0;
 
@@ -132,36 +136,12 @@ void logicSetup()
 	delay(300);
 	Serial.println("Setting up output pins...");
 	delay(700);
+	Wire.begin();
 }
 
 
 void logicLoop()
 {
-	switch (bGlobalErr){
-	case 0:
-		Serial.print("Light = ");
-		Serial.print(dht_dat[0], DEC);
-		Serial.println("%  ");
-		Serial.print("Temp = ");
-		Serial.print(Fahrenheit(dht.temperature));
-		Serial.println(" *C  ");
-
-		break;
-	case 1:
-		Serial.println("Error 1: DHT start condition 1 not met.");
-		break;
-	case 2:
-		Serial.println("Error 2: DHT start condition 2 not met.");
-		break;
-	case 3:
-		Serial.println("Error 3: DHT checksum error.");
-		break;
-	default:
-		Serial.println("Error: Unrecognized code encountered.");
-		break;
-	}
-
-
 	float sensorValue = 0;
 	sensorValue = analogRead(pHPin);
 	pH = phTest();
@@ -237,65 +217,6 @@ void logicLoop()
 
 	
 	delay(250);
-}
-
-void fotoLoop()
-{
-		lightADCReading = analogRead(lightSensor);
-		// Calculating the voltage of the ADC for light
-		lightInputVoltage = 5.0 * ((double)lightADCReading / 1024.0);
-		// Calculating the resistance of the photoresistor in the voltage divider
-		lightResistance = (10.0 * 5.0) / lightInputVoltage - 10.0;
-		// Calculating the intensity of light in lux       
-		currentLightInLux = 255.84 * pow(lightResistance, -10 / 9);
-}
-
-void FanControl()
-{
-	if ((dht_dat[0] >= FanHumid) && (dht_dat[2] >= FanTemp))
-	{
-		digitalWrite(ventilatorPin, HIGH);
-	}
-	else
-	{
-		digitalWrite(ventilatorPin, LOW);
-	}
-}
-
-void TankProgControl()
-{
-	int levelHigh = LOW;
-	int levelLow = LOW;
-
-	levelHigh = digitalRead(floatHighPin);
-	levelLow = digitalRead(floatLowPin);
-
-	if (levelHigh == LOW)
-	{
-		if (levelLow == LOW)
-		{
-			digitalWrite(solenoidPin, HIGH); //solenoid valve open.
-		}
-	}
-	else
-	{
-		if (levelLow == HIGH)
-		{
-			digitalWrite(solenoidPin, LOW); //solenoid valve closed.
-		}
-	}
-}
-
-
-void ManualRefilProg()
-{
-	digitalWrite(solenoidPin, HIGH);
-}
-
-void timeSetup()
-{
-	Wire.begin();
-	now = rtc.time();
 }
 
 void runPump()
@@ -416,6 +337,4 @@ double Fahrenheit(double celsius)
 void noScreenSetup() {
 	EEPROM.writeFloat(EepromSetpoint, 7.0);
 	EEPROM.writeFloat(EepromSetHysteris, 1.0);
-	EEPROM.writeFloat(EepromFanTemp, 100.0);
-	EEPROM.writeFloat(EepromFanHumid, 50.0);
 }
