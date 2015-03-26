@@ -8,7 +8,6 @@
 #include <DS1302.h>
 #include <Wire.h>                //One Wire library
 #include <EEPROMex.h>            //Extended Eeprom library
-#include <RTClib.h>
 
 
 #define dht_dpin 49                //pin for DHT11
@@ -21,10 +20,13 @@ int floatHighPin = 8;              //pin for upper float sensor
 int solenoidPin = 60;              //pin for Solenoid valve (relay)
 int lightSensor = 68;              //pin for Photoresistor
 int pumpPin = 47;				   //pin for main pump
+const int kCePin = 36;  // Chip Enable
+const int kIoPin = 34;  // Input/Output
+const int kSclkPin = 38;  // Serial Clock
 
-
-RTC_DS1307 RTC;                    //Define RTC module
-
+// Create a DS1302 object.
+DS1302 rtc(kCePin, kIoPin, kSclkPin);
+Time now = rtc.time();
 
 // Variables
 int x, y;
@@ -32,6 +34,8 @@ int page = 0;
 int tankProgState = 0;
 int manualRefilState = 0;
 float pH;                          //generates the value of pH
+int phUp;
+int phDown;
 
 int pmem = 0;                      //check which page your on
 float Setpoint;                    //holds value for Setpoint
@@ -40,6 +44,7 @@ float HysterisPlus;
 float SetHysteris;
 float FanTemp;
 float FanHumid;
+int flood;
 
 int lightADCReading;
 double currentLightInLux;
@@ -56,8 +61,6 @@ int EepromFanHumid = 60;      //location of FanHumid in Eeprom
 byte bGlobalErr;    //for passing error code back.
 byte dht_dat[4];    //Array to hold the bytes sent from sensor.
 
-DateTime now;                 //call current Date and Time
-
 
 Esp8266EasyIoT esp;
 
@@ -66,12 +69,21 @@ dht11 dht;
 float lastTemp;
 float lastHum;
 int lastpH;
+int lastFlood;
+int lastpHPluspin;
+int lastpHMinpin;
 #define CHILD_ID_HUM 0
 #define CHILD_ID_TEMP 1
 #define CHILD_ID_PH 3
+#define CHILD_ID_FLOOD 4
+#define CHILD_ID_PH_UP 5
+#define CHILD_ID_PH_DOWN 6
 Esp8266EasyIoTMsg msgHum(CHILD_ID_HUM, V_HUM);
 Esp8266EasyIoTMsg msgTemp(CHILD_ID_TEMP, V_TEMP);
 Esp8266EasyIoTMsg msgpH(CHILD_ID_PH, V_PH);
+Esp8266EasyIoTMsg msgFlood(CHILD_ID_FLOOD, V_PH);
+Esp8266EasyIoTMsg msgPHup(CHILD_ID_PH_UP, V_DOOR);
+Esp8266EasyIoTMsg msgPHdown(CHILD_ID_PH_DOWN, V_DOOR);
 
 
 
@@ -116,7 +128,6 @@ void logicSetup()
 	pinMode(pumpPin, OUTPUT);
 	pmem == 0;
 
-	InitDHT();
 	Serial.begin(9600);
 	delay(300);
 	Serial.println("Setting up output pins...");
@@ -126,7 +137,6 @@ void logicSetup()
 
 void logicLoop()
 {
-	ReadDHT();
 	switch (bGlobalErr){
 	case 0:
 		Serial.print("Light = ");
@@ -165,6 +175,8 @@ void logicLoop()
 			digitalWrite(pHMinPin, LOW);
 		digitalWrite(pHPlusPin, LOW);
 		Serial.println("ph + and - are LOW");
+		phDown = 0;
+		phUp = 0;
 	}
 
 	if (pH >= HysterisMin && pH <= HysterisPlus && pmem == 0)
@@ -172,6 +184,8 @@ void logicLoop()
 		digitalWrite(pHMinPin, LOW);
 		digitalWrite(pHPlusPin, LOW);
 		Serial.println("ph + and - are LOW (hysteria correction)");
+		phUp = 0;
+		phDown = 0;
 	}
 
 	if (pH < HysterisMin && pmem == 0)
@@ -180,6 +194,8 @@ void logicLoop()
 			digitalWrite(pHPlusPin, HIGH);
 		digitalWrite(pHMinPin, LOW);
 		Serial.println("ph + pin is HIGH");
+		phUp = 1;
+		phDown = 0;
 	}
 
 	if (pH >= HysterisMin && pH < Setpoint && pmem == 1)
@@ -187,14 +203,18 @@ void logicLoop()
 		digitalWrite(pHPlusPin, HIGH);
 		digitalWrite(pHMinPin, LOW);
 		Serial.println("ph + pin is HIGH");
+		phUp = 1;
+		phDown = 0;
 	}
 
 	if (pH > HysterisPlus && pmem == 0)
 	{
 		pmem == 2,
-			digitalWrite(pHMinPin, HIGH);
+		digitalWrite(pHMinPin, HIGH);
 		digitalWrite(pHPlusPin, LOW);
 		Serial.println("ph - pin is HIGH");
+		phDown = 1;
+		phUp = 0;
 
 	}
 
@@ -203,6 +223,8 @@ void logicLoop()
 		digitalWrite(pHMinPin, HIGH);
 		digitalWrite(pHPlusPin, LOW);
 		Serial.println("ph - pin is HIGH");
+		phUp = 0;
+		phDown = 1;
 	}
 	Serial.print("pmem = ");
 	Serial.println(pmem);
@@ -215,74 +237,6 @@ void logicLoop()
 
 	
 	delay(250);
-}
-
-void InitDHT()
-{
-	pinMode(dht_dpin, OUTPUT);
-	digitalWrite(dht_dpin, HIGH);
-}
-
-void ReadDHT()
-{
-	bGlobalErr = 0;
-	byte dht_in;
-	byte i;
-	digitalWrite(dht_dpin, LOW);
-	delay(23);
-	digitalWrite(dht_dpin, HIGH);
-	delayMicroseconds(40);
-	pinMode(dht_dpin, INPUT);
-	dht_in = digitalRead(dht_dpin);
-
-	if (dht_in)
-	{
-		bGlobalErr = 1;//dht start condition 1 not met
-		return;
-	}
-
-	delayMicroseconds(80);
-	dht_in = digitalRead(dht_dpin);
-
-	if (!dht_in)
-	{
-		bGlobalErr = 2;//dht start condition 2 not met
-		return;
-	}
-
-	delayMicroseconds(80);
-	for (i = 0; i<5; i++)
-		dht_dat[i] = read_dht_dat();
-
-	pinMode(dht_dpin, OUTPUT);
-
-	digitalWrite(dht_dpin, HIGH);
-
-	byte dht_check_sum =
-		dht_dat[0] + dht_dat[1] + dht_dat[2] + dht_dat[3];
-
-	if (dht_dat[4] != dht_check_sum)
-	{
-		bGlobalErr = 3;
-	}
-};
-
-
-byte read_dht_dat()
-{
-	byte i = 0;
-	byte result = 0;
-	for (i = 0; i< 8; i++)
-	{
-		while (digitalRead(dht_dpin) == LOW);
-		delayMicroseconds(45);
-
-		if (digitalRead(dht_dpin) == HIGH)
-			result |= (1 << (7 - i));
-
-		while (digitalRead(dht_dpin) == HIGH);
-	}
-	return result;
 }
 
 void fotoLoop()
@@ -341,24 +295,29 @@ void ManualRefilProg()
 void timeSetup()
 {
 	Wire.begin();
-	RTC.begin();
+	now = rtc.time();
 }
 
 void runPump()
 {
-	now = RTC.now();
-	if ((now.hour() % 2 == 1) && (now.minute() == 0 || now.minute() == 1 || now.minute() == 2))
+	now = rtc.time();
+	if ((now.hr % 2 == 1) && (now.min == 0 || now.min == 1 || now.min == 2))
 	{
 		//Starts at 7am
-		if ((now.hour() - 7) >= 0)
+		if ((now.hr - 7) >= 0)
 		{
 			digitalWrite(pumpPin, HIGH);
+			flood = 1;
+			Serial.println("Flooding: on");
 		}
 	}
 	else
 	{
 		digitalWrite(pumpPin, LOW);
+		flood = 0;
+		Serial.println("Flooding: off");
 	}
+
 }
 
 void IoTsetup() {
@@ -374,6 +333,9 @@ void IoTsetup() {
 	esp.present(CHILD_ID_HUM, S_HUM);
 	esp.present(CHILD_ID_TEMP, S_TEMP);
 	esp.present(CHILD_ID_PH, V_PH);
+	esp.present(CHILD_ID_FLOOD, V_PH);
+	esp.present(CHILD_ID_PH_UP, S_DOOR);
+	esp.present(CHILD_ID_PH_DOWN, S_DOOR);
 
 }
 
@@ -416,6 +378,27 @@ void IoTreport() {
 		Serial.print("pH: ");
 		Serial.println(phTest());
 	}
+
+	if (flood != lastFlood)
+	{
+		lastFlood = flood;
+		esp.send(msgFlood.set(flood));
+		Serial.print("Flooding: ");
+		Serial.println(flood);
+	}
+	
+	if (phUp != lastpHPluspin)
+	{
+		lastpHPluspin= phUp;
+		esp.send(msgPHup.set(phUp));
+	}
+	if (phDown != lastpHMinpin)
+	{
+		lastpHMinpin = phDown;
+		esp.send(msgPHdown.set(phDown));
+	}
+
+
 }
 
 float phTest() {
