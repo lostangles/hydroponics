@@ -30,6 +30,7 @@ Changes include:
 
 */
 
+#include <Thermistor.h>
 #include <dht11.h>
 #include <Esp8266EasyIoTMsg.h>
 #include <Esp8266EasyIoTConfig.h>
@@ -39,6 +40,10 @@ Changes include:
 #include <Wire.h>                //One Wire library
 #include <EEPROMex.h>            //Extended Eeprom library
 
+//Thermistor variables
+Thermistor waterTemp(A0);
+int lastWTemp;
+int wTemp;
 
 #define dht_dpin 49                //pin for DHT11
 int pHPin = A9;                    //pin for pH probe
@@ -59,10 +64,9 @@ int page = 0;
 int tankProgState = 0;
 int manualRefilState = 0;
 float pH;                          //generates the value of pH
-int phUp;
-int phDown;
+int phUp=2;						   //Always let IoT flip state on startup
+int phDown=2;					   //             |
 
-int pmem = 0;                      //check which page your on
 float Setpoint;                    //holds value for Setpoint
 float HysterisMin;
 float HysterisPlus;
@@ -70,6 +74,11 @@ float SetHysteris;
 float FanTemp;
 float FanHumid;
 int flood;
+								   // Variables for pulsing the pump
+long previousMillis = 0;           //             |
+long pinHighTime = 100;            //             |
+long pinLowTime = 7500;            //             |
+long pinTime = 100;                //             |
 
 int EepromSetpoint = 10;      //location of Setpoint in Eeprom
 int EepromSetHysteris = 20;   //location of SetHysteris in Eeprom
@@ -90,13 +99,14 @@ int lastpHMinpin;
 #define CHILD_ID_FLOOD 4
 #define CHILD_ID_PH_UP 5
 #define CHILD_ID_PH_DOWN 6
+#define CHILD_ID_WTEMP 7
 Esp8266EasyIoTMsg msgHum(CHILD_ID_HUM, V_HUM);
 Esp8266EasyIoTMsg msgTemp(CHILD_ID_TEMP, V_TEMP);
 Esp8266EasyIoTMsg msgpH(CHILD_ID_PH, V_PH);
 Esp8266EasyIoTMsg msgFlood(CHILD_ID_FLOOD, V_PH);
 Esp8266EasyIoTMsg msgPHup(CHILD_ID_PH_UP, V_DOOR);
 Esp8266EasyIoTMsg msgPHdown(CHILD_ID_PH_DOWN, V_DOOR);
-
+Esp8266EasyIoTMsg msgWaterTemp(CHILD_ID_WTEMP, V_TEMP);
 
 
 void setup()
@@ -130,7 +140,6 @@ void logicSetup()
 	pinMode(pHPlusPin, OUTPUT);
 	pinMode(pHMinPin, OUTPUT);
 	pinMode(pumpPin, OUTPUT);
-	pmem == 0;
 
 	Serial.begin(9600);
 	delay(300);
@@ -151,63 +160,94 @@ void logicLoop()
 
 	if (pH == Setpoint)
 	{
-		pmem == 0,
+		unsigned long currentMillis = millis();
+		if (currentMillis - previousMillis > pinTime)
+		{
+			previousMillis = currentMillis;
+
 			digitalWrite(pHMinPin, LOW);
-		digitalWrite(pHPlusPin, LOW);
-		Serial.println("ph + and - are LOW");
-		phDown = 0;
-		phUp = 0;
+			digitalWrite(pHPlusPin, LOW);
+			Serial.println("ph + and - are LOW");
+			phDown = 0;
+			phUp = 0;
+			pinTime = pinLowTime;
+		}
 	}
 
-	if (pH >= HysterisMin && pH <= HysterisPlus && pmem == 0)
+	if (pH >= HysterisMin && pH <= HysterisPlus )
 	{
-		digitalWrite(pHMinPin, LOW);
-		digitalWrite(pHPlusPin, LOW);
-		Serial.println("ph + and - are LOW (hysteria correction)");
-		phUp = 0;
-		phDown = 0;
+		unsigned long currentMillis = millis();
+		if (currentMillis - previousMillis > pinTime)
+		{
+			previousMillis = currentMillis;
+			digitalWrite(pHMinPin, LOW);
+			digitalWrite(pHPlusPin, LOW);
+			Serial.println("ph + and - are LOW (hysteria correction)");
+			phUp = 0;
+			phDown = 0;
+			pinTime = pinLowTime;
+		}
 	}
 
-	if (pH < HysterisMin && pmem == 0)
+	if (pH < HysterisMin)
 	{
-		pmem == 1,
+		unsigned long currentMillis = millis();
+		if (currentMillis - previousMillis > pinTime)
+		{
+			previousMillis = currentMillis;
 			digitalWrite(pHPlusPin, HIGH);
-		digitalWrite(pHMinPin, LOW);
-		Serial.println("ph + pin is HIGH");
-		phUp = 1;
-		phDown = 0;
+			digitalWrite(pHMinPin, LOW);
+			Serial.println("ph + pin is HIGH");
+			phUp = 1;
+			phDown = 0;
+			pinTime = pinHighTime;
+		}
 	}
 
-	if (pH >= HysterisMin && pH < Setpoint && pmem == 1)
+	if (pH >= HysterisMin && pH < Setpoint)
 	{
-		digitalWrite(pHPlusPin, HIGH);
-		digitalWrite(pHMinPin, LOW);
-		Serial.println("ph + pin is HIGH");
-		phUp = 1;
-		phDown = 0;
+		unsigned long currentMillis = millis();
+		if (currentMillis - previousMillis > pinTime)
+		{
+			previousMillis = currentMillis;
+			digitalWrite(pHPlusPin, HIGH);
+			digitalWrite(pHMinPin, LOW);
+			Serial.println("ph + pin is HIGH");
+			phUp = 1;
+			phDown = 0;
+			pinTime = pinHighTime;
+		}
 	}
 
-	if (pH > HysterisPlus && pmem == 0)
+	if (pH > HysterisPlus)
 	{
-		pmem == 2,
-		digitalWrite(pHMinPin, HIGH);
-		digitalWrite(pHPlusPin, LOW);
-		Serial.println("ph - pin is HIGH");
-		phDown = 1;
-		phUp = 0;
-
+		unsigned long currentMillis = millis();
+		if (currentMillis - previousMillis > pinTime)
+		{
+			previousMillis = currentMillis;
+			digitalWrite(pHMinPin, HIGH);
+			digitalWrite(pHPlusPin, LOW);
+			Serial.println("ph - pin is HIGH");
+			phDown = 1;
+			phUp = 0;
+			pinTime = pinLowTime;
+		}
 	}
 
-	if (pH <= HysterisPlus && pH > Setpoint && pmem == 2)
+	if (pH <= HysterisPlus && pH > Setpoint)
 	{
-		digitalWrite(pHMinPin, HIGH);
-		digitalWrite(pHPlusPin, LOW);
-		Serial.println("ph - pin is HIGH");
-		phUp = 0;
-		phDown = 1;
+		unsigned long currentMillis = millis();
+		if (currentMillis - previousMillis > pinTime)
+		{
+			previousMillis = currentMillis;
+			digitalWrite(pHMinPin, HIGH);
+			digitalWrite(pHPlusPin, LOW);
+			Serial.println("ph - pin is HIGH");
+			phUp = 0;
+			phDown = 1;
+			pinTime = pinLowTime;
+		}
 	}
-	Serial.print("pmem = ");
-	Serial.println(pmem);
 	Serial.print("Setpoint = ");
 	Serial.println(Setpoint);
 	Serial.print("Hysteris = ");
@@ -257,6 +297,7 @@ void IoTsetup() {
 	esp.present(CHILD_ID_FLOOD, V_PH);
 	esp.present(CHILD_ID_PH_UP, S_DOOR);
 	esp.present(CHILD_ID_PH_DOWN, S_DOOR);
+	esp.present(CHILD_ID_WTEMP, S_TEMP);
 
 }
 
@@ -318,7 +359,12 @@ void IoTreport() {
 		lastpHMinpin = phDown;
 		esp.send(msgPHdown.set(phDown));
 	}
-
+	 wTemp = waterTemp.getTemp();
+	if ((wTemp - lastWTemp) > 2 || (lastWTemp - wTemp) > 2)
+	{
+		lastWTemp = wTemp;
+		esp.send(msgWaterTemp.set(Fahrenheit(wTemp), 1));
+	}
 
 }
 
@@ -335,6 +381,6 @@ double Fahrenheit(double celsius)
 }
 
 void noScreenSetup() {
-	EEPROM.writeFloat(EepromSetpoint, 7.0);
+	EEPROM.writeFloat(EepromSetpoint, 6.5);  // 6.5 pH for tomato growth
 	EEPROM.writeFloat(EepromSetHysteris, 1.0);
 }
