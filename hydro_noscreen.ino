@@ -262,7 +262,7 @@ void logicLoop()
 void runPump()
 {
 	now = rtc.time();
-	if ((now.hr % 2 == 1) && (now.min == 0 || now.min == 1 || now.min == 2))
+	if ((now.hr % 2 == 1) && (now.min == 0 || now.min == 1 || now.min == 2 || now.min == 4))
 	{
 		//Starts at 7am
 		if ((now.hr - 7) >= 0)
