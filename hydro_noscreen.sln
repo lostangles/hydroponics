@@ -5,6 +5,8 @@ VisualStudioVersion = 12.0.31101.0
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "hydro_noscreen", "hydro_noscreen.vcxproj", "{CDC2C1B7-B9D8-438B-AF89-8D75BD81FC8C}"
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "esptest", "..\esptest\esptest.vcxproj", "{1B23E727-5940-4D28-A0B5-C575834A3EA0}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Win32 = Debug|Win32
@@ -15,6 +17,10 @@ Global
 		{CDC2C1B7-B9D8-438B-AF89-8D75BD81FC8C}.Debug|Win32.Build.0 = Debug|Win32
 		{CDC2C1B7-B9D8-438B-AF89-8D75BD81FC8C}.Release|Win32.ActiveCfg = Release|Win32
 		{CDC2C1B7-B9D8-438B-AF89-8D75BD81FC8C}.Release|Win32.Build.0 = Release|Win32
+		{1B23E727-5940-4D28-A0B5-C575834A3EA0}.Debug|Win32.ActiveCfg = Debug|Win32
+		{1B23E727-5940-4D28-A0B5-C575834A3EA0}.Debug|Win32.Build.0 = Debug|Win32
+		{1B23E727-5940-4D28-A0B5-C575834A3EA0}.Release|Win32.ActiveCfg = Release|Win32
+		{1B23E727-5940-4D28-A0B5-C575834A3EA0}.Release|Win32.Build.0 = Release|Win32
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

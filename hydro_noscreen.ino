@@ -39,6 +39,8 @@ Changes include:
 #include <DS1302.h>
 #include <Wire.h>                //One Wire library
 #include <EEPROMex.h>            //Extended Eeprom library
+#include <avr/wdt.h>
+
 
 //Thermistor variables
 Thermistor waterTemp(A0);
@@ -113,19 +115,25 @@ Esp8266EasyIoTMsg msgWaterTemp(CHILD_ID_WTEMP, V_TEMP);
 
 void setup()
 {
+	MCUSR = 0;
+	wdt_disable();
+	wdt_reset();	//Watch dog threshold reset
 	noScreenSetup();
 	EepromRead();
 	logicSetup();
 	IoTsetup();
+	wdt_enable(WDTO_8S);  	//Watchdog timer - 8 seconds of no wdt_reset(), reset arduino
 }
 
 void loop()
 {
-
+	wdt_reset();	//Watch dog threshold reset
 	logicLoop();
+	wdt_reset();	//Watch dog threshold reset
 	runPump();
+	wdt_reset();	//Watch dog threshold reset
 	IoTreport();
-
+	wdt_reset();	//Watch dog threshold reset
 }
 
 void EepromRead()
@@ -264,7 +272,7 @@ void logicLoop()
 void runPump()
 {
 	now = rtc.time();
-	if ((now.hr % 2 == 1) && (now.min == 0 || now.min == 1 || now.min == 2 || now.min == 3))
+	if ((now.hr % 2 == 1) && (now.min == 0 || now.min == 1 || now.min == 2 || now.min == 3 || now.min == 4))
 	{
 		//Starts at 7am
 		if ((now.hr - 7) >= 0)
@@ -304,11 +312,13 @@ void IoTsetup() {
 }
 
 void IoTreport() {
+	Serial.println("Test");
 	while (!esp.process());
 
 	delay(100);
 
 	while (!esp.process());
+
 	dht.read(49);
 	float temperature = dht.temperature;
 	if (isnan(temperature)) {

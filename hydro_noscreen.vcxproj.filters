@@ -21,5 +21,8 @@
     <ClInclude Include="Visual Micro\.hydro_noscreen.vsarduino.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="Visual Micro\.hydroponics.vsarduino.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>
