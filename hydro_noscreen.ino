@@ -93,6 +93,8 @@ int lastpH;
 int lastFlood;
 int lastpHPluspin;
 int lastpHMinpin;
+boolean phChange = true;
+
 #define CHILD_ID_HUM 0
 #define CHILD_ID_TEMP 1
 #define CHILD_ID_PH 3
@@ -339,6 +341,7 @@ void IoTreport() {
 		esp.send(msgpH.set(phTest(), 2));
 		Serial.print("pH: ");
 		Serial.println(phTest());
+		phChange = true;
 	}
 
 	if (flood != lastFlood)
@@ -349,15 +352,17 @@ void IoTreport() {
 		Serial.println(flood);
 	}
 	
-	if (phUp != lastpHPluspin)
+	if (phChange)
 	{
 		lastpHPluspin= phUp;
 		esp.send(msgPHup.set(phUp));
+		phChange = false;
 	}
-	if (phDown != lastpHMinpin)
+	if (phChange)
 	{
 		lastpHMinpin = phDown;
 		esp.send(msgPHdown.set(phDown));
+		phChange = false;
 	}
 	 wTemp = waterTemp.getTemp();
 	if ((wTemp - lastWTemp) > 2 || (lastWTemp - wTemp) > 2)
