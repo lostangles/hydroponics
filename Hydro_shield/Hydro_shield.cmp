@@ -1,0 +1,10 @@
+Cmp-Mod V01 Created by Cvpcb (after 2015-mar-04 BZR unknown)-product   date = 3/31/2015 9:34:43 AM
+
+BeginCmp
+TimeStamp = /551AB5C7;
+Reference = SHIELD1;
+ValeurCmp = ARDUINO_MEGA_SHIELD;
+IdModule  = Hydro_shield:ARDUINO_MEGA_SHIELD_040pins;
+EndCmp
+
+EndListe
