@@ -7,8 +7,11 @@ https://github.com/BillieBricks/Billie-s-Hydroponic-Controller/blob/master/Hydro
 
 Added features:  
 -Water pump control for ebb/flow system
+
 -ESP8266 support for remote sensor readings via EasyIOT
+
 -Thermistor algorithm for water temperature
+
 -Watchdog support for error and crash handling
 
 Controller allows automated pH control, controls flooding/draining of the grow bed,
